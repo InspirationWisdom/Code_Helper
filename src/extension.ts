@@ -7,7 +7,7 @@ export function activate(context: vscode.ExtensionContext) {
     
     console.log('Extension activated.');
     const APIKEY:string = process.env.APIKEY ? process.env.APIKEY : "";
-    const openai = new OpenAI({apiKey: "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"});
+    const openai = new OpenAI({apiKey: ""});
 
     async function getAnswer(text: String, error: String, activeEditor: vscode.TextEditor, fixRange: vscode.Range) {
         const completion = await openai.chat.completions.create({
