@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import OpenAI from "openai";
+require('dotenv').config(); 
+
 
 export function activate(context: vscode.ExtensionContext) {
 
     let fixedCode = "No answer found";
-    
     console.log('Extension activated.');
-    const APIKEY:string = process.env.APIKEY ? process.env.APIKEY : "";
-    const openai = new OpenAI({apiKey: ""});
-
+    const openai = new OpenAI({apiKey: process.env.OPENAI_API_KEY});
+    
     async function getAnswer(text: String, error: String, activeEditor: vscode.TextEditor, fixRange: vscode.Range) {
         const completion = await openai.chat.completions.create({
             messages: [{ role: "system", content: "Here is a line of code, the code content is '" + text + "' and the error message is '" + error + "'. Please return the text of the correct code only" }],
@@ -26,33 +26,66 @@ export function activate(context: vscode.ExtensionContext) {
         });
     }
     
-    let fixErrorCommand = vscode.commands.registerCommand('code-helper.helloWorld', () => {
+    let fixErrorCommand = vscode.commands.registerCommand('code-helper.codeHelper', () => {
         
         const activeEditor = vscode.window.activeTextEditor;
         
         if (!activeEditor) {
             return;
         }
-        vscode.window.showInformationMessage('script is running');
+
+        // vscode.window.showInformationMessage('script is running');
         const diagnostics = vscode.languages.getDiagnostics(activeEditor.document.uri);
-        
-        diagnostics.forEach(diagnostic => {
-            
-            console.log(diagnostic);
-            const errorRange = diagnostic.range;
-            const errorText = diagnostic.message;
-            
-            const fixRange = new vscode.Range(errorRange.start.translate(-1, 0), errorRange.end.translate(-1, 50));
 
-            const selectedText = activeEditor.document.getText(fixRange);
-
-            console.log(selectedText);
-
-            getAnswer(selectedText, errorText, activeEditor, fixRange);
-        
+        if(diagnostics.length !== 0) {
+            vscode.window.showInformationMessage(
+                'There is some errors in your code, do you wish Code Helper to fix it?',
+                'Yes',
+                'No'
+              ).then(selection => {
+                // Handle the selection
+                if (selection === 'Yes') {
+                    // User selected 'Yes'
+                    diagnostics.forEach(diagnostic => {
             
-            context.subscriptions.push(fixErrorCommand);   
-        });
+                        // console.log(diagnostic);
+                        const errorRange = diagnostic.range;
+                        const errorText = diagnostic.message;
+                        
+                        const selectedTextRange = new vscode.Range(errorRange.start.translate(-1, 0), errorRange.end.translate(-1, 50));
+                        const fixRange = new vscode.Range(errorRange.start.translate(0, 0), errorRange.end.translate(-1, 50));
+            
+                        const selectedText = activeEditor.document.getText(selectedTextRange);
+            
+                        // console.log(selectedText);
+            
+                        getAnswer(selectedText, errorText, activeEditor, fixRange);
+                    
+                        
+                        context.subscriptions.push(fixErrorCommand);   
+                    });
+                } else {
+                  // User selected 'No' or closed the prompt
+
+                }
+              });
+              
+        }
+        else{
+            vscode.window.showInformationMessage('Yes! There is no error in your code!');
+        }
+    });
+
+    // Set an interval to execute the command every 5 seconds
+    let interval = setInterval(() => {
+        vscode.commands.executeCommand('code-helper.codeHelper');
+    }, 5000);
+
+    // Ensure to clear the interval when the extension is deactivated
+    context.subscriptions.push({
+        dispose: () => {
+            clearInterval(interval);
+        }
     });
 }
 
