@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import OpenAI from "openai";
-require('dotenv').config(); 
+import * as dotenv from 'dotenv';
+dotenv.config();
+ 
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -19,10 +21,10 @@ export function activate(context: vscode.ExtensionContext) {
         
         activeEditor.edit(editBuilder => {
             console.log(fixRange);
-            // fixRange = new vscode.Range(fixRange.start.translate(1, 0), fixRange.end.translate(-1, 50));
+            fixRange = new vscode.Range(fixRange.start.translate(0, fixRange.start.character * (-1)), fixRange.end.translate(0, 0));
             console.log(fixedCode);
             editBuilder.replace(fixRange, fixedCode);
-            editBuilder.insert(fixRange.start.translate(1, 30), " #" + error + "  ");
+            editBuilder.insert(fixRange.start.translate(0, 30), " #" + error + "  ");
         });
     }
     
@@ -52,13 +54,12 @@ export function activate(context: vscode.ExtensionContext) {
                         const errorRange = diagnostic.range;
                         const errorText = diagnostic.message;
                         
-                        const selectedTextRange = new vscode.Range(errorRange.start.translate(-1, 0), errorRange.end.translate(-1, 50));
+                        const selectedTextRange = new vscode.Range(errorRange.start.translate(0, errorRange.start.character * (-1)), errorRange.end.translate(-1, 50));
                         const fixRange = new vscode.Range(errorRange.start.translate(0, 0), errorRange.end.translate(-1, 50));
             
                         const selectedText = activeEditor.document.getText(selectedTextRange);
             
                         // console.log(selectedText);
-            
                         getAnswer(selectedText, errorText, activeEditor, fixRange);
                     
                         
@@ -71,15 +72,12 @@ export function activate(context: vscode.ExtensionContext) {
               });
               
         }
-        else{
-            vscode.window.showInformationMessage('Yes! There is no error in your code!');
-        }
     });
 
-    // Set an interval to execute the command every 5 seconds
+    // Set an interval to execute the command every 30 seconds
     let interval = setInterval(() => {
         vscode.commands.executeCommand('code-helper.codeHelper');
-    }, 5000);
+    }, 30000);
 
     // Ensure to clear the interval when the extension is deactivated
     context.subscriptions.push({
