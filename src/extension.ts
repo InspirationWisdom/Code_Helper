@@ -1,23 +1,29 @@
 import * as vscode from 'vscode';
-import OpenAI from "openai";
 import * as dotenv from 'dotenv';
 dotenv.config();
  
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 
     let fixedCode = "No answer found";
     console.log('Extension activated.');
-    const openai = new OpenAI({apiKey: ''});
+    const genAI = new GoogleGenerativeAI("YOUR_API_KEY");
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     async function getAnswer(text: String, error: String, activeEditor: vscode.TextEditor, fixRange: vscode.Range, fullText: String) {
-        const completion = await openai.chat.completions.create({
-            messages: [{ role: "system", content: "Here is a line of code, the code content is '" + text + "', the error message is '" + error + "', and the full code text is '" + fullText + "'. Please make sure your answer is based on the context provided and contains the TEXT of the correct code ONLY" }],
-            model: "gpt-3.5-turbo",
-        });
-
-        completion.choices[0].message.content ? fixedCode = completion.choices[0].message.content : fixedCode = "No answer found";
+        const prompt = "Here is a line of python code: " + text + "', it has an error and the error message is '" + error + "', the full code text is here: '" + fullText + "'. Please fix it and make sure your answer is based on the context provided and contains ONLY ONE LINE of the CORRECTED PYTHON code, nothing else";
+        const result = await model.generateContent(prompt);
+        var resultText = result.response.text();
+        console.log("Gemini response: \n" + resultText);
+        // 按行分割
+        const lines = resultText.trim().split('\n');
+        lines.length === 1 ? resultText = lines[0] : resultText = lines[1];
+        if (resultText[0] === '`') {
+            resultText = resultText.slice(1, -1);
+        }
+        resultText ? fixedCode = resultText : fixedCode = "No answers found";
+        console.log("Gemini response: \n" + fixedCode);
         
         vscode.window.showInformationMessage('The original code is \'' + text + '\' and' 
                                             + 'your fixed code is \'' + fixedCode + 
@@ -28,11 +34,10 @@ export function activate(context: vscode.ExtensionContext) {
                 activeEditor.edit(editBuilder => {
                     console.log('fix range');
                     console.log(fixRange);
-                    fixRange = new vscode.Range(fixRange.start.translate(0, fixRange.start.character * (-1)), fixRange.end.translate(0, 0));
                     console.log('fixed code');
                     console.log(fixedCode);
-                    editBuilder.replace(fixRange, fixedCode);
-                    editBuilder.insert(fixRange.start.translate(0, 30), " #" + error + "  ");
+                    editBuilder.delete(fixRange);
+                    editBuilder.insert(fixRange.start, fixedCode);
                 });
             } else {
               // User selected 'No' or closed the prompt
@@ -75,9 +80,9 @@ export function activate(context: vscode.ExtensionContext) {
                         console.log('error range');
                         console.log(errorRange);
 
-                        const selectedTextRange = new vscode.Range(errorRange.start.translate(0, errorRange.start.character * (-1)), errorRange.end.translate(-1, 50));
-                        const fixRange = new vscode.Range(errorRange.start.translate(0, 0), errorRange.end.translate(-1, 50));
-            
+                        const selectedTextRange = new vscode.Range(errorRange.start.translate(0, -errorRange.start.character), errorRange.end.translate(0, 50));
+                        const fixRange = new vscode.Range(selectedTextRange.start, selectedTextRange.end);
+
                         const selectedText = activeEditor.document.getText(selectedTextRange);
                         
                         console.log('selected text range');
@@ -101,7 +106,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Set an interval to execute the command every 30 seconds
     let interval = setInterval(() => {
         vscode.commands.executeCommand('code-helper.codeHelper');
-    }, 30000);
+    }, 20000);
 
     // Ensure to clear the interval when the extension is deactivated
     context.subscriptions.push({
